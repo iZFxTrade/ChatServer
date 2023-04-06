@@ -10,7 +10,7 @@ const configuration = new Configuration({
 const openai = new OpenAIApi(configuration);
 module.exports = openai;
 
-const bot = new Telegraf(process.env.TG_API);
+const bot = new Telegraf(process.env.TG_API, {polling: true});
 bot.start((ctx) => ctx.reply("Chào Ku! muốn hỏi gì?"));
 
 bot.help((ctx) => {
