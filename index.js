@@ -3,7 +3,10 @@ require('dotenv').config()
 const { Configuration, OpenAIApi } = require("openai");
 const { getImage, getChat } = require("./Helper/functions");
 const { Telegraf } = require("telegraf");
-
+const Promise = require('bluebird');
+  Promise.config({
+    cancellation: true
+  });
 const configuration = new Configuration({
   apiKey: process.env.API,
 });
