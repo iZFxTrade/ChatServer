@@ -1,7 +1,7 @@
 {
   "name": "socket.io-chat",
   "version": "0.0.0",
-  "description": "A simple chat client using socket.io",
+  "description": "Chat Server.io",
   "main": "index.js",
   "author": "Grant Timmerman",
   "private": true,
