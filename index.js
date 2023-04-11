@@ -8,8 +8,10 @@ const io = require('socket.io')(server);
 const port = process.env.PORT || 3000;
 
 const bodyParser = require('body-parser');
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json()); // parse application/json
+app.use(bodyParser.text()); // parse text/plain
+app.use(bodyParser.urlencoded({ extended: true })); // parse application/x-www-form-urlencoded
+
 
 server.listen(port, () => {
   console.log('Server listening at port %d', port);
@@ -108,30 +110,41 @@ io.on('connection', (socket) => {
 });
 
 // Add webhook endpoint
- app.post('/webhook/:username', (req, res) => {
+app.post('/webhook/:username', (req, res) => {
   const { username } = req.params;
-  const data = req.body;
-  const msg = JSON.stringify(data, null, 2);
-  let text = ''; // Khởi tạo chuỗi văn bản trống để lưu trữ các cặp giá trị JSON
-
-  for (const key in data) {
-    if (data.hasOwnProperty(key)) { // Kiểm tra xem thuộc tính có phải là của đối tượng hay không
-      var k = key;
-      if (key === 'symbol' || key === "type") {
-        k = "";
+  let data = req.body;
+  let text = '';
+  try {
+    if (typeof data === 'string') {
+      text = data;
+    } else if (typeof data === 'object' && data !== null) {
+      console.log('data is an object');
+      for (const key in data) {
+        if (data.hasOwnProperty(key)) {
+          var k = key;
+          if (key === 'symbol' || key === "type") {
+            k = "";
+          }
+          text += `${k}: ${data[key]}\n`;
+        } else
+          console.log('data is an object but not key: %s', key);
       }
-      text += `${k}: ${data[key]}\n`; // Thêm cặp giá trị vào chuỗi văn bản, với mỗi giá trị nằm trên một dòng mới
+    } else {
+      console.log('data is not valid');
+      return res.status(400).send('Invalid data format');
     }
+  } catch (err) {
+    console.error(err);
+    return res.status(400).send('Invalid data format');
   }
- 
-  
-  console.log('Noi dung Webhook: %s', data);
+
+  console.log('Webhook data: %s', text);
   io.emit('new message', {
     username,
-    //message: data.message
     message: text
   });
 
-  res.status(200).send(`Webhook received for ${username}  : ${JSON.stringify(data)}`);
+  return res.status(200).send(`Webhook received for ${username}  : ${text}`);
 });
+
 
