@@ -156,7 +156,7 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
 
   io.emit('new message', {
     username,
-    message: `${text} \n⏱"${hours}:${minutes}"`,
+    message: `${text} \n⏱(${hours}:${minutes})`,
   });
 
   return res.status(200).send(`Webhook received for ${username}  : ${text}`);
