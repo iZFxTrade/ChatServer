@@ -149,9 +149,14 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
   }
 
   console.log('Webhook data: %s', text);
+  //get time now
+  const now = new Date();
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  const hours = now.getHours().toString().padStart(2, '0'); 
+
   io.emit('new message', {
     username,
-    message: text
+    message: `${text} \n⏱"${hours}:${minutes}"`,
   });
 
   return res.status(200).send(`Webhook received for ${username}  : ${text}`);
