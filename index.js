@@ -149,16 +149,18 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
   }
 
   console.log('Webhook data: %s', text);
-  //get time now
   const now = new Date();
   const GTM7 = new Date(now.valueOf() + now.getTimezoneOffset() * 60000 + 7 * 3600000);
   const minutes = GTM7.getMinutes().toString().padStart(2, '0');
   const hours = GTM7.getHours().toString().padStart(2, '0'); 
+  const day = GTM7.getDate().toString().padStart(2, '0'); 
+  const month = (GTM7.getMonth() + 1).toString().padStart(2, '0');
 
   io.emit('new message', {
     username,
-    message: `${text} \n⏱(${hours}:${minutes})`,
+    message: `${text} \n⏱(${hours}:${minutes} ${day}/${month})`,
   });
+
 
   return res.status(200).send(`Webhook received for ${username}  : ${text}`);
 });
