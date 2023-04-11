@@ -1,5 +1,4 @@
-
-// Setup basic express server
+// Setup up Chatbot// Setup basic express server
 const express = require('express');
 const app = express();
 const path = require('path');
@@ -11,7 +10,6 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.json()); // parse application/json
 app.use(bodyParser.text()); // parse text/plain
 app.use(bodyParser.urlencoded({ extended: true })); // parse application/x-www-form-urlencoded
-
 
 server.listen(port, () => {
   console.log('Server listening at port %d', port);
@@ -27,7 +25,7 @@ let numUsers = 0;
 
 io.on('connection', (socket) => {
   let addedUser = false;
-  
+
   // when the client emits 'new message', this listens and executes
   socket.on('new message', (data) => {
     //console.log('Received message %s: %s', username , data);
@@ -36,31 +34,31 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('new message', {
       username: socket.username,
       message: data,
-      
+
     });
-    
+
   });
-// Lắng nghe sự kiện khi một client kết nối đến server
-io.on('connection', (socket) => {
-  console.log('A user connected.');
+  // Lắng nghe sự kiện khi một client kết nối đến server
+  io.on('connection', (socket) => {
+    console.log('A user connected.');
 
-  // Lắng nghe sự kiện chat message từ client
-  socket.on('chat message', (msg) => {
-    console.log('Received message:', msg);
+    // Lắng nghe sự kiện chat message từ client
+    socket.on('chat message', (msg) => {
+      console.log('Received message:', msg);
 
-    // Gửi tin nhắn cho một user duy nhất với socketId tương ứng
-    const userId = msg.to;
-    const socketId = getUserSocketId(userId); // Lấy socketId của user từ id
-    if (socketId) {
-      socket.to(socketId).emit('chat message', msg);
-      console.log('Sent message to user', userId);
-    } else {
-      console.log('User not found:', userId);
-    }
+      // Gửi tin nhắn cho một user duy nhất với socketId tương ứng
+      const userId = msg.to;
+      const socketId = getUserSocketId(userId); // Lấy socketId của user từ id
+      if (socketId) {
+        socket.to(socketId).emit('chat message', msg);
+        console.log('Sent message to user', userId);
+      } else {
+        console.log('User not found:', userId);
+      }
+    });
+
+    // ...
   });
-
-  // ...
-});
 
 
   // when the client emits 'add user', this listens and executes
@@ -146,5 +144,4 @@ app.post('/webhook/:username', (req, res) => {
 
   return res.status(200).send(`Webhook received for ${username}  : ${text}`);
 });
-
 
