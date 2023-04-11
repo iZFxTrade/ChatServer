@@ -263,11 +263,11 @@ $(function() {
   });
 
   socket.on('disconnect', () => {
-    log('you have been disconnected');
+    //log('you have been disconnected');
   });
 
   socket.io.on('reconnect', () => {
-    log('you have been reconnected');
+    //log('you have been reconnected');
     if (username) {
       socket.emit('add user', username);
     }
