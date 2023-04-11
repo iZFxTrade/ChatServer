@@ -107,10 +107,22 @@ io.on('connection', (socket) => {
   });
 });
 
+
+// List of accepted API keys
+const acceptedKeys = ['0938247116', '0938579116'];
 // Add webhook endpoint
-app.post('/webhook/:username', (req, res) => {
-  const { username } = req.params;
-  let data = req.body;
+app.post('/webhook/:username/:apiKey', (req, res) => {
+  const { username, apiKey } = req.params;
+
+  // Check if API key is valid
+  if (!acceptedKeys.includes(apiKey)) {
+    return res.status(401).send('Invalid API key');
+  }
+
+  // Extract the data from the request body
+  const data = req.body;
+
+  // Extract the text message from the data
   let text = '';
   try {
     if (typeof data === 'string') {
@@ -144,4 +156,14 @@ app.post('/webhook/:username', (req, res) => {
 
   return res.status(200).send(`Webhook received for ${username}  : ${text}`);
 });
+
+// Handle invalid endpoint
+app.use((req, res) => {
+  return res.status(404).send('Invalid endpoint');
+});
+
+/* // dành cho client webhook
+const username = 'johndoe';
+const apiKey = '0938247116';
+const url = `http://example.com/webhook/${encodeURIComponent(username)}/${encodeURIComponent(apiKey)}`; */
 
