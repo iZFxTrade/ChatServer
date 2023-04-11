@@ -109,7 +109,7 @@ io.on('connection', (socket) => {
 
 
 // List of accepted API keys
-const acceptedKeys = ['0938247116', '0938579116'];
+const acceptedKeys = ['iZFx.Trade', 'Fx.iZ.Life'];
 // Add webhook endpoint
 app.post('/webhook/:username/:apiKey', (req, res) => {
   const { username, apiKey } = req.params;
