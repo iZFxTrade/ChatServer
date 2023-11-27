@@ -163,7 +163,7 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
   // Add telegram bot
   const TelegramBot = require('node-telegram-bot-api');
   const token = '1261480444:AAF13U7MBu4I6k-_Ivc8k18JTI2_l_TDQNg';
-  const chatId = '-991276663';
+  const chatId = '-4095152061';
   const boTrade = new TelegramBot(token);
   // Semd Méssage to Telegram
   boTrade.sendMessage(chatId, text);
