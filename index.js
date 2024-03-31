@@ -1,7 +1,10 @@
 // Load environment variables from .env file
 require('dotenv').config();
 
-// Setup basic express server
+// List of accepted API keys
+const acceptedKeys = [process.env.API_KEY_1, process.env.API_KEY_2, process.env.API_KEY_3];
+
+// Setup up Chatbot// Setup basic express server
 const express = require('express');
 const app = express();
 const path = require('path');
@@ -16,12 +19,14 @@ app.use(bodyParser.urlencoded({ extended: true })); // parse application/x-www-f
 
 server.listen(port, () => {
   console.log('Server listening at port %d', port);
+
 });
 
 // Routing
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Chatroom
+
 let numUsers = 0;
 
 io.on('connection', (socket) => {
@@ -35,9 +40,10 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('new message', {
       username: socket.username,
       message: data,
-    });
-  });
 
+    });
+
+  });
   // Lắng nghe sự kiện khi một client kết nối đến server
   io.on('connection', (socket) => {
     console.log('A user connected.');
@@ -59,6 +65,7 @@ io.on('connection', (socket) => {
 
     // ...
   });
+
 
   // when the client emits 'add user', this listens and executes
   socket.on('add user', (username) => {
@@ -106,29 +113,13 @@ io.on('connection', (socket) => {
   });
 });
 
-// Define objects to store telegram information for each API key
-const telegramInfo = {
-  [process.env.API_KEY_1]: {
-    token: process.env.TELEGRAM_TOKEN_1,
-    chatId: process.env.TELEGRAM_CHAT_ID_1
-  },
-  [process.env.API_KEY_2]: {
-    token: process.env.TELEGRAM_TOKEN_2,
-    chatId: process.env.TELEGRAM_CHAT_ID_2
-  }
-};
-
-// Function to get telegram information based on API key
-function getTelegramInfo(apiKey) {
-  return telegramInfo[apiKey];
-}
 
 // Add webhook endpoint
 app.post('/webhook/:username/:apiKey', (req, res) => {
   const { username, apiKey } = req.params;
 
   // Check if API key is valid
-  if (!Object.keys(telegramInfo).includes(apiKey)) {
+  if (!acceptedKeys.includes(apiKey)) {
     return res.status(401).send('Invalid API key');
   }
 
@@ -165,8 +156,8 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
   const now = new Date();
   const GTM7 = new Date(now.valueOf() + now.getTimezoneOffset() * 60000 + 7 * 3600000);
   const minutes = GTM7.getMinutes().toString().padStart(2, '0');
-  const hours = GTM7.getHours().toString().padStart(2, '0');
-  const day = GTM7.getDate().toString().padStart(2, '0');
+  const hours = GTM7.getHours().toString().padStart(2, '0'); 
+  const day = GTM7.getDate().toString().padStart(2, '0'); 
   const month = (GTM7.getMonth() + 1).toString().padStart(2, '0');
 
   io.emit('new message', {
@@ -174,16 +165,40 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
     message: `${text} \n⏱(${hours}:${minutes} ${day}/${month})`,
   });
 
-  // Get telegram information based on API key
-  const { token, chatId } = getTelegramInfo(apiKey);
-
   // Add telegram bot
   const TelegramBot = require('node-telegram-bot-api');
-  const boTrade = new TelegramBot(token);
-  // Send Message to Telegram
-  boTrade.sendMessage(chatId, text);
 
-  return res.status(200).send(`Webhook received for ${username}  : ${text}`);
+  // Define objects to store telegram information for each API key
+  const telegramInfo = {
+    [process.env.API_KEY_1]: {
+      token: process.env.TELEGRAM_TOKEN_1,
+      chatId: process.env.TELEGRAM_CHAT_ID_1
+    },
+    [process.env.API_KEY_2]: {
+      token: process.env.TELEGRAM_TOKEN_2,
+      chatId: process.env.TELEGRAM_CHAT_ID_2
+    },
+    [process.env.API_KEY_3]: {
+      token: process.env.TELEGRAM_TOKEN_3,
+      chatId: process.env.TELEGRAM_CHAT_ID_3
+    }
+  };
+
+  // Function to get telegram information based on API key
+  function getTelegramInfo(apiKey) {
+    return telegramInfo[apiKey];
+  }
+
+  const { token, chatId } = getTelegramInfo(apiKey);
+  const bot = new TelegramBot(token);
+  bot.sendMessage(chatId, text)
+    .then(() => {
+      return res.status(200).send(`Webhook received for ${username}  : ${text}`);
+    })
+    .catch((error) => {
+      console.error('Telegram error:', error.response.body);
+      return res.status(500).send('Error sending message to Telegram');
+    });
 });
 
 // Handle invalid endpoint
@@ -195,4 +210,3 @@ app.use((req, res) => {
 const username = 'johndoe';
 const apiKey = '0938247116';
 const url = `http://example.com/webhook/${encodeURIComponent(username)}/${encodeURIComponent(apiKey)}`; */
-
