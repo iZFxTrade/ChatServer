@@ -19,7 +19,6 @@ app.use(bodyParser.urlencoded({ extended: true })); // parse application/x-www-f
 
 server.listen(port, () => {
   console.log('Server listening at port %d', port);
-
 });
 
 // Routing
@@ -34,16 +33,14 @@ io.on('connection', (socket) => {
 
   // when the client emits 'new message', this listens and executes
   socket.on('new message', (data) => {
-    //console.log('Received message %s: %s', username , data);
     const userId = data.to;
     // we tell the client to execute 'new message'
     socket.broadcast.emit('new message', {
       username: socket.username,
       message: data,
-
     });
-
   });
+
   // Lắng nghe sự kiện khi một client kết nối đến server
   io.on('connection', (socket) => {
     console.log('A user connected.');
@@ -62,10 +59,7 @@ io.on('connection', (socket) => {
         console.log('User not found:', userId);
       }
     });
-
-    // ...
   });
-
 
   // when the client emits 'add user', this listens and executes
   socket.on('add user', (username) => {
@@ -156,8 +150,8 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
   const now = new Date();
   const GTM7 = new Date(now.valueOf() + now.getTimezoneOffset() * 60000 + 7 * 3600000);
   const minutes = GTM7.getMinutes().toString().padStart(2, '0');
-  const hours = GTM7.getHours().toString().padStart(2, '0'); 
-  const day = GTM7.getDate().toString().padStart(2, '0'); 
+  const hours = GTM7.getHours().toString().padStart(2, '0');
+  const day = GTM7.getDate().toString().padStart(2, '0');
   const month = (GTM7.getMonth() + 1).toString().padStart(2, '0');
 
   io.emit('new message', {
@@ -189,6 +183,10 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
     return telegramInfo[apiKey];
   }
 
+  if (!getTelegramInfo(apiKey)) {
+    return res.status(401).send('Invalid API key');
+  }
+
   const { token, chatId } = getTelegramInfo(apiKey);
   const bot = new TelegramBot(token);
   bot.sendMessage(chatId, text)
@@ -205,6 +203,7 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
 app.use((req, res) => {
   return res.status(404).send('Invalid endpoint');
 });
+
 
 /* // dành cho client webhook
 const username = 'johndoe';
