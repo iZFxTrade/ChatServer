@@ -1,3 +1,8 @@
+// Load environment variables from .env file
+require('dotenv').config();
+// List of accepted API keys
+const acceptedKeys = [process.env.API_KEY_1, process.env.API_KEY_2];
+
 // Setup up Chatbot// Setup basic express server
 const express = require('express');
 const app = express();
@@ -161,10 +166,10 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
     message: `${text} \n⏱(${hours}:${minutes} ${day}/${month})`,
   });
   // Add telegram bot
-  const TelegramBot = require('node-telegram-bot-api');
-  const token = '1261480444:AAF13U7MBu4I6k-_Ivc8k18JTI2_l_TDQNg';
-  const chatId = '-4095152061';
-  const boTrade = new TelegramBot(token);
+// Add telegram bot
+const TelegramBot = require('node-telegram-bot-api');
+const boTrade = new TelegramBot(process.env.TELEGRAM_TOKEN);
+const chatId = process.env.TELEGRAM_CHAT_ID;
   // Semd Méssage to Telegram
   boTrade.sendMessage(chatId, text);
 
