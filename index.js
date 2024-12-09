@@ -1,6 +1,9 @@
 // Load environment variables from .env file
 require('dotenv').config();
 
+const axios = require('axios');
+const cheerio = require('cheerio');
+
 // List of accepted API keys
 const acceptedKeys = [process.env.API_KEY_1, process.env.API_KEY_2, process.env.API_KEY_3];
 
@@ -11,6 +14,53 @@ const path = require('path');
 const server = require('http').createServer(app);
 const io = require('socket.io')(server);
 const port = process.env.PORT || 3000;
+
+// Cache response neu prompt da ton tai truoc do
+const NodeCache = require("node-cache");
+const responseCache = new NodeCache({ stdTTL: 300 }); // TTL 5 phút
+
+// OpenAI
+const OpenAI = require("openai");
+const openai = new OpenAI({
+  apiKey: process.env.OpenAi_API, // This is the default and can be omitted
+});
+
+// Gemini
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+// Kiểm tra API key
+if (!process.env.Gemini_API) {
+  throw new Error("Gemini_API is not defined in your .env file");
+}
+
+const genAI = new GoogleGenerativeAI(process.env.Gemini_API);
+(async () => {
+  try {
+    // Lấy model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    // Prompt
+    const prompt = "Hello Gemini?";
+    const result = await model.generateContent([prompt]);
+
+    // Kiểm tra phản hồi
+    if (result.response) {
+      console.log("Gemini.AI: "+result.response.text());
+    } else {
+      console.log("No response or invalid response format");
+    }
+  } catch (error) {
+    console.error("Error:", error.message);
+  }
+})();
+
+// Validate API key
+function validateApiKey(req, res, next) {
+  const { apiKey } = req.params;
+  if (!acceptedKeys.includes(apiKey)) {
+    return res.status(401).send("Invalid API key");
+  }
+  next();
+}
 
 const bodyParser = require('body-parser');
 app.use(bodyParser.json()); // parse application/json
@@ -199,8 +249,354 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
     });
 });
 
+// Ham request Gemini
+async function callGeminiAPI(prompt) {
+  const cacheKey = `gemini_${prompt}`;
+  const cachedResponse = responseCache.get(cacheKey);
+  if (cachedResponse) {
+    console.log("Gemini: Returning cached response");
+    return cachedResponse;
+  }
+  try {
+    // Lấy model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const result = await model.generateContent([prompt]);
+
+    // Kiểm tra phản hồi
+    if (result.response) {
+      const response = result.response.text();
+      responseCache.set(cacheKey, response); // Lưu vào cache
+      console.log("Gemini.AI: " + response);
+      return response;
+    } else {
+      console.log("No response or invalid response format");
+      return "No response or invalid response format";
+    }
+  } catch (error) {
+    console.error("Error:", error.message);
+    return "Error processing request";
+  }
+}
+
+
+
+// Endpoint request Gemini
+app.post('/gemini/:username/:apiKey',validateApiKey, async (req, res) => {
+  const { username, apiKey } = req.params;
+  let prompt;
+
+  // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
+  if (req.is('application/json') && req.body.messages) {
+    // Tìm prompt trong mảng messages
+    const userMessage = req.body.messages.find(message => message.role === 'user');
+    prompt = userMessage ? userMessage.content : null;
+  } else if (typeof req.body === 'string') {
+    // Nếu body là text
+    prompt = req.body;
+  }
+
+  if (!prompt) {
+    return res.status(400).send('Invalid request format or missing prompt');
+  }
+  
+  io.emit('new message', {
+    username,
+    message: prompt
+  });
+ // Check if API key is valid
+ if (!acceptedKeys.includes(apiKey)) {
+  return res.status(401).send('Invalid API key');
+}
+
+  
+  try {
+    const response = await callGeminiAPI(prompt);
+    const UserAI = "Gemini.AI";
+    io.emit('new message', {
+      username: UserAI,
+      message: response
+    });
+    return res.status(200).send(response);
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('Error processing request');
+  }
+});
+
+// Ham request OpenAI
+async function callOpenAI(prompt) {
+  const cacheKey = `openai_${prompt}`;
+  const cachedResponse = responseCache.get(cacheKey);
+  if (cachedResponse) {
+    console.log("OpenAI: Returning cached response");
+    return cachedResponse;
+  }
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+  });
+    const response = completion.choices[0].message.content;
+    responseCache.set(cacheKey, response); // Lưu vào cache
+    console.log("Open.AI: " + response);
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
+} 
+
+
+// Add Endpoint request OpenAI
+app.post('/openai/:username/:apiKey', validateApiKey, async (req, res) => {
+  const { username, apiKey } = req.params;
+  let prompt;
+
+  // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
+  if (req.is('application/json') && req.body.messages) {
+    // Tìm prompt trong mảng messages
+    const userMessage = req.body.messages.find(message => message.role === 'user');
+    prompt = userMessage ? userMessage.content : null;
+  } else if (typeof req.body === 'string') {
+    // Nếu body là text
+    prompt = req.body;
+  }
+
+  if (!prompt) {
+    return res.status(400).send('Invalid request format or missing prompt');
+  }
+  
+  io.emit('new message', {
+    username,
+    message: prompt
+  });
+ // Check if API key is valid
+ if (!acceptedKeys.includes(apiKey)) {
+  return res.status(401).send('Invalid API key');
+}
+
+  
+  try {
+    const response = await callOpenAI(prompt);
+    const UserAI = "Open.AI";
+    io.emit('new message', {
+      username: UserAI,
+      message: response
+    });
+    return res.status(200).send(response);
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('Error processing request');
+  }   
+}
+);
+
+// Ham request Azure OpenAI
+
+async function callAzureOpenAI(prompt) {
+  const cacheKey = `azure_openai_${prompt}`;
+  const cachedResponse = responseCache.get(cacheKey);
+  if (cachedResponse) {
+    console.log("Azure OpenAI: Returning cached response");
+    return cachedResponse;
+  }
+  const azure = new OpenAI({ baseURL: "https://models.inference.ai.azure.com", apiKey: process.env.GitHub_API });
+  try {
+    const kq = await azure.chat.completions.create({
+      messages: [
+        { role:"user", content: prompt }
+      ],
+      temperature: 1.0,
+      top_p: 1.0,
+      max_tokens: 1000,
+      model: "gpt-4o-mini"
+  });
+    const response = kq.choices[0].message.content;
+    responseCache.set(cacheKey, response); // Lưu vào cache
+    console.log("AzureOpen.AI: " + response);
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
+}
+// Add endpoint request Azure OpenAI
+app.post('/azure/:username/:apiKey', validateApiKey, async (req, res) => {
+  const { username, apiKey } = req.params;
+  let prompt;
+
+  // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
+  if (req.is('application/json') && req.body.messages) {
+    // Tìm prompt trong mảng messages
+    const userMessage = req.body.messages.find(message => message.role === 'user');
+    prompt = userMessage ? userMessage.content : null;
+  } else if (typeof req.body === 'string') {
+    // Nếu body là text
+    prompt = req.body;
+  }
+
+  if (!prompt) {
+    return res.status(400).send('Invalid request format or missing prompt');
+  }
+  
+  io.emit('new message', {
+    username,
+    message: prompt
+  });
+ // Check if API key is valid
+ if (!acceptedKeys.includes(apiKey)) {
+  return res.status(401).send('Invalid API key');
+}
+  
+  try {
+    const response = await callAzureOpenAI(prompt);
+    const UserAI = "AzureOpen.AI";
+    io.emit('new message', {
+      username: UserAI,
+      message: response
+    });
+    return res.status(200).send(response);
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('Error processing request');
+  }   
+} );
+
+// Add endpoint request All AI
+app.post('/allai/:username/:apiKey', validateApiKey, async (req, res) => {
+  const { username, apiKey } = req.params;
+  let prompt;
+
+  // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
+  if (req.is('application/json') && req.body.messages) {
+    // Tìm prompt trong mảng messages
+    const userMessage = req.body.messages.find(message => message.role === 'user');
+    prompt = userMessage ? userMessage.content : null;
+  } else if (typeof req.body === 'string') {
+    // Nếu body là text
+    prompt = req.body;
+  }
+
+  if (!prompt) {
+    return res.status(400).send('Invalid request format or missing prompt');
+  }
+  
+  io.emit('new message', {
+    username,
+    message: prompt
+  });
+ // Check if API key is valid
+ if (!acceptedKeys.includes(apiKey)) {
+  return res.status(401).send('Invalid API key');
+}
+  try {
+    const response = await callAllAI(prompt);
+    const UserAI = "All AI";
+    io.emit('new message', {
+      username: UserAI,
+      message: response
+    });
+    return res.status(200).send(response);
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('Error processing request');
+  }   
+} );
+// Call All AI, Google AI, Azure OpenAI, Open AI, ChatGPT
+async function callAllAI(prompt) {
+  const cacheKey = `allai_${prompt}`;
+  const cachedResponse = responseCache.get(cacheKey);
+  if (cachedResponse) {
+    console.log("All AI: Returning cached response");
+    return cachedResponse;
+  }
+  const azure = await callAzureOpenAI(prompt);
+  const openai = await callOpenAI(prompt);
+  const gemini = await callGeminiAPI(prompt);
+  const response = `"Azure.AI": ${azure}\n\n"Open.AI": ${openai}\n\n"Gemini.AI": ${gemini}`;
+  responseCache.set(cacheKey, response); // Lưu vào cache
+  return response;
+}
+
+
+
+// Encode URL https://www.myfxbook.com/community/outlook
+// Mảng lưu trữ dữ liệu symbol và long/short % (sẽ được cập nhật định kỳ)
+let marketData = [];
+
+// Cập nhật dữ liệu từ Myfxbook mỗi 5 phút
+const fetchData = async () => {
+  try {
+    const response = await axios.get('https://api.allorigins.win/get?url=https://www.myfxbook.com/community/outlook');
+    const data = JSON.parse(response.data.contents);
+    const symbols = parseMarketData(data);  // Hàm phân tích dữ liệu lấy từ Myfxbook
+    marketData = symbols;
+    console.log('Market data updated:', marketData);
+  } catch (error) {
+    console.error('Error fetching data from Myfxbook:', error);
+  }
+};
+
+// Hàm phân tích dữ liệu lấy từ Myfxbook
+const parseMarketData = (data) => {
+  const symbols = [];
+  // Giả sử dữ liệu Myfxbook có cấu trúc HTML mà bạn cần trích xuất
+  // Cần viết logic phân tích HTML hoặc JSON tùy theo định dạng dữ liệu thực tế
+  // Ví dụ:
+  const regex = /<tr><td>(.*?)<\/td><td>(\d+)%<\/td><td>(\d+)%<\/td><\/tr>/g;
+  let match;
+  while ((match = regex.exec(data)) !== null) {
+    symbols.push({
+      symbol: match[1],
+      long: parseInt(match[2]),
+      short: parseInt(match[3])
+    });
+  }
+  return symbols;
+};
+
+// Gọi fetchData mỗi 5 phút
+setInterval(fetchData, 5 * 60 * 1000);
+
+// Endpoint lấy dữ liệu symbol theo API key
+
+app.post('/ms/:symbol/:apikey', async (req, res) => {
+  const { symbol, apikey } = req.params;
+  
+  console.log('Received symbol:', symbol);
+  console.log('Received API key:', apikey);
+  console.log('Accepted keys:', acceptedKeys);
+
+  if (!acceptedKeys.includes(apikey)) {
+    console.error('Invalid API key');
+    return res.status(401).send('Invalid API key');
+  }
+
+  console.log('Market data:', marketData);
+
+  const data = marketData.find(item => item.symbol.toLowerCase() === symbol.toLowerCase());
+  console.log('Search result:', data);
+
+  if (!data) {
+    console.error('Symbol not found');
+    return res.status(404).send('Symbol not found in data');
+  }
+
+  return res.json({
+    symbol: data.symbol,
+    long: data.long,
+    short: data.short
+  });
+});
+
 // Handle invalid endpoint
-app.use((req, res) => {
+app.use((_req, res) => {
   return res.status(404).send('Invalid endpoint');
 });
 
