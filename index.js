@@ -166,7 +166,7 @@ function getCurrentTimeGTM7() {
   const hours = GTM7.getHours().toString().padStart(2, '0');
   const day = GTM7.getDate().toString().padStart(2, '0');
   const month = (GTM7.getMonth() + 1).toString().padStart(2, '0');                   // Năm
-  return `(⏱ ${hours}:${minutes} ${day}/${month}) `;
+  return `(⏱ ${hours}:${minutes} ${day}/${month}): `;
 }
 
 // Add webhook endpoint
@@ -256,8 +256,8 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
 });
 
 // Ham request Gemini
-async function callGeminiAPI(prompt) {
-  const cacheKey = `gemini_${prompt}`;
+async function callGeminiAPI(prompt, moden= "gemini-1.5-pro") {
+  const cacheKey = `gemini_${prompt+moden}`;
   const cachedResponse = responseCache.get(cacheKey);
   if (cachedResponse) {
     console.log("Gemini: Returning cached response");
@@ -265,7 +265,7 @@ async function callGeminiAPI(prompt) {
   }
   try {
     // Lấy model
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const model = genAI.getGenerativeModel({ model: moden });
     const result = await model.generateContent([prompt]);
 
     // Kiểm tra phản hồi
@@ -273,6 +273,11 @@ async function callGeminiAPI(prompt) {
       const response = result.response.text();
       responseCache.set(cacheKey, response); // Lưu vào cache
       console.log("Gemini.AI: " + response);
+      const UserAI = "Gemini.AI ("+moden+"): ";
+      io.emit('new message', {
+        username: UserAI,
+        message: response 
+      });
       return response;
     } else {
       console.log("No response or invalid response format");
@@ -287,8 +292,8 @@ async function callGeminiAPI(prompt) {
 
 
 // Endpoint request Gemini
-app.post('/gemini/:username/:apiKey',validateApiKey, async (req, res) => {
-  const { username, apiKey } = req.params;
+app.post('/gemini/:username/:apiKey/:moden?',validateApiKey, async (req, res) => {
+  const { username, apiKey, moden } = req.params;
   let prompt;
 
   // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
@@ -313,15 +318,8 @@ app.post('/gemini/:username/:apiKey',validateApiKey, async (req, res) => {
  if (!acceptedKeys.includes(apiKey)) {
   return res.status(401).send('Invalid API key');
 }
-
-  
   try {
-    const response = await callGeminiAPI(prompt);
-    const UserAI = "Gemini.AI";
-    io.emit('new message', {
-      username: UserAI,
-      message: response 
-    });
+    const response = await callGeminiAPI(prompt, moden);
     return res.status(200).send(response);
 
   } catch (error) {
@@ -331,8 +329,8 @@ app.post('/gemini/:username/:apiKey',validateApiKey, async (req, res) => {
 });
 
 // Ham request OpenAI
-async function callOpenAI(prompt) {
-  const cacheKey = `openai_${prompt}`;
+async function callOpenAI(prompt, model = "gpt-3.5-turbo") {
+  const cacheKey = `openai_${prompt+model}`;
   const cachedResponse = responseCache.get(cacheKey);
   if (cachedResponse) {
     console.log("OpenAI: Returning cached response");
@@ -340,7 +338,7 @@ async function callOpenAI(prompt) {
   }
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: model,
       messages: [
         { role: "user", content: prompt },
       ],
@@ -350,6 +348,11 @@ async function callOpenAI(prompt) {
     const response = completion.choices[0].message.content;
     responseCache.set(cacheKey, response); // Lưu vào cache
     console.log("Open.AI: " + response);
+    const UserAI = "Open.AI ("+model+"): ";
+    io.emit('new message', {
+      username: UserAI,
+      message: response
+    });
     return response;
   } catch (error) {
     console.log(error);
@@ -358,8 +361,8 @@ async function callOpenAI(prompt) {
 
 
 // Add Endpoint request OpenAI
-app.post('/openai/:username/:apiKey', validateApiKey, async (req, res) => {
-  const { username, apiKey } = req.params;
+app.post('/openai/:username/:apiKey/:model?', validateApiKey, async (req, res) => {
+  const { username, apiKey, model } = req.params;
   let prompt;
 
   // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
@@ -387,12 +390,7 @@ app.post('/openai/:username/:apiKey', validateApiKey, async (req, res) => {
 
   
   try {
-    const response = await callOpenAI(prompt);
-    const UserAI = "Open.AI";
-    io.emit('new message', {
-      username: UserAI,
-      message: response
-    });
+    const response = await callOpenAI(prompt,model);
     return res.status(200).send(response);
 
   } catch (error) {
@@ -404,8 +402,8 @@ app.post('/openai/:username/:apiKey', validateApiKey, async (req, res) => {
 
 // Ham request Azure OpenAI
 
-async function callAzureOpenAI(prompt) {
-  const cacheKey = `azure_openai_${prompt}`;
+async function callAzureOpenAI(prompt, model = 'gpt-4o-mini') {
+  const cacheKey = `azure_openai_${prompt+model}`;
   const cachedResponse = responseCache.get(cacheKey);
   if (cachedResponse) {
     console.log("Azure OpenAI: Returning cached response");
@@ -414,64 +412,65 @@ async function callAzureOpenAI(prompt) {
   const azure = new OpenAI({ baseURL: "https://models.inference.ai.azure.com", apiKey: process.env.GitHub_API });
   try {
     const kq = await azure.chat.completions.create({
+      model: model,
       messages: [
         { role:"user", content: prompt }
       ],
-      temperature: 1.0,
-      top_p: 1.0,
-      max_tokens: 1000,
-      model: "gpt-4o-mini"
+      //temperature: 1.0,
+      //top_p: 1.0,
+      //max_tokens: 1000,
+      //model: model
   });
     const response = kq.choices[0].message.content;
     responseCache.set(cacheKey, response); // Lưu vào cache
     console.log("AzureOpen.AI: " + response);
+    const UserAI = "Azure.AI ("+model+"): ";
+    io.emit('new message', {
+      username: UserAI,
+      message: response
+    });
     return response;
   } catch (error) {
     console.log(error);
   }
 }
-// Add endpoint request Azure OpenAI
-app.post('/azure/:username/:apiKey', validateApiKey, async (req, res) => {
-  const { username, apiKey } = req.params;
-  let prompt;
+  // Add endpoint request Azure OpenAI
+  app.post('/azure/:username/:apiKey/:model?', validateApiKey, async (req, res) => {
+    const { username, apiKey, model } = req.params; // Lấy model từ params
+    let prompt;
 
-  // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
-  if (req.is('application/json') && req.body.messages) {
-    // Tìm prompt trong mảng messages
-    const userMessage = req.body.messages.find(message => message.role === 'user');
-    prompt = userMessage ? userMessage.content : null;
-  } else if (typeof req.body === 'string') {
-    // Nếu body là text
-    prompt = req.body;
-  }
+    // Kiểm tra nếu req.body là JSON và có cấu trúc đúng
+    if (req.is('application/json') && req.body.messages) {
+      // Tìm prompt trong mảng messages
+      const userMessage = req.body.messages.find(message => message.role === 'user');
+      prompt = userMessage ? userMessage.content : null;
+    } else if (typeof req.body === 'string') {
+      // Nếu body là text
+      prompt = req.body;
+    }
 
-  if (!prompt) {
-    return res.status(400).send('Invalid request format or missing prompt');
-  }
-  
-  io.emit('new message', {
-    username,
-    message:  getCurrentTimeGTM7() +prompt 
-  });
- // Check if API key is valid
- if (!acceptedKeys.includes(apiKey)) {
-  return res.status(401).send('Invalid API key');
-}
-  
-  try {
-    const response = await callAzureOpenAI(prompt);
-    const UserAI = "AzureOpen.AI";
+    if (!prompt) {
+      return res.status(400).send('Invalid request format or missing prompt');
+    }
+    
     io.emit('new message', {
-      username: UserAI,
-      message: response
+      username,
+      message:  getCurrentTimeGTM7() +prompt 
     });
-    return res.status(200).send(response);
+  // Check if API key is valid
+  if (!acceptedKeys.includes(apiKey)) {
+    return res.status(401).send('Invalid API key');
+  }
+    
+    try {
+      const response = await callAzureOpenAI(prompt,model);
+      return res.status(200).send(response);
 
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send('Error processing request');
-  }   
-} );
+    } catch (error) {
+      console.error(error);
+      return res.status(500).send('Error processing request');
+    }   
+  } );
 
 // Add endpoint request All AI
 app.post('/allai/:username/:apiKey', validateApiKey, async (req, res) => {
@@ -502,11 +501,6 @@ app.post('/allai/:username/:apiKey', validateApiKey, async (req, res) => {
 }
   try {
     const response = await callAllAI(prompt);
-    const UserAI = "All AI";
-    io.emit('new message', {
-      username: UserAI,
-      message: response
-    });
     return res.status(200).send(response);
 
   } catch (error) {
@@ -523,9 +517,10 @@ async function callAllAI(prompt) {
     return cachedResponse;
   }
   const azure = await callAzureOpenAI(prompt);
-  const openai = await callOpenAI(prompt);
+  const azure4 = await callAzureOpenAI(prompt, 'gpt-4o');
+  //const openai = await callOpenAI(prompt);
   const gemini = await callGeminiAPI(prompt);
-  const response = `"Azure.AI": ${azure}\n\n"Open.AI": ${openai}\n\n"Gemini.AI": ${gemini}`;
+  const response = `"Azure.AI": ${azure}\n\n"GPT4": ${azure4}\n\n"Gemini.AI": ${gemini}`;
   responseCache.set(cacheKey, response); // Lưu vào cache
   return response;
 }
@@ -546,7 +541,9 @@ const fetchData = async () => {
       const html = response.data.contents; 
       const symbols = parseMarketData(html);  // Truyền chuỗi HTML vào parseMarketData
       marketData = symbols;
-      console.log('Market data updated:', marketData);
+      console.log(marketData.length + ' Symbol in marketData updated');
+      //in danh sach marketData
+      //console.log('Market data updated:', marketData);
       return symbols; // Trả về dữ liệu khi thành công
     } catch (error) {
       if (error.response && error.response.status >= 500) {
