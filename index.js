@@ -1,6 +1,6 @@
 // Load environment variables from .env file
 require('dotenv').config();
-
+const retry = require('async-retry');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
@@ -51,6 +51,8 @@ const genAI = new GoogleGenerativeAI(process.env.Gemini_API);
   } catch (error) {
     console.error("Error:", error.message);
   }
+  console.log("Fetching data from Myfxbook...");
+  fetchData();
 })();
 
 // Validate API key
@@ -157,6 +159,15 @@ io.on('connection', (socket) => {
   });
 });
 
+function getCurrentTimeGTM7() {
+  const now = new Date();
+  const GTM7 = new Date(now.valueOf() + now.getTimezoneOffset() * 60000 + 7 * 3600000);
+  const minutes = GTM7.getMinutes().toString().padStart(2, '0');
+  const hours = GTM7.getHours().toString().padStart(2, '0');
+  const day = GTM7.getDate().toString().padStart(2, '0');
+  const month = (GTM7.getMonth() + 1).toString().padStart(2, '0');                   // Năm
+  return `(⏱ ${hours}:${minutes} ${day}/${month}) `;
+}
 
 // Add webhook endpoint
 app.post('/webhook/:username/:apiKey', (req, res) => {
@@ -197,16 +208,11 @@ app.post('/webhook/:username/:apiKey', (req, res) => {
   }
 
   console.log('Webhook data: %s', text);
-  const now = new Date();
-  const GTM7 = new Date(now.valueOf() + now.getTimezoneOffset() * 60000 + 7 * 3600000);
-  const minutes = GTM7.getMinutes().toString().padStart(2, '0');
-  const hours = GTM7.getHours().toString().padStart(2, '0');
-  const day = GTM7.getDate().toString().padStart(2, '0');
-  const month = (GTM7.getMonth() + 1).toString().padStart(2, '0');
+
 
   io.emit('new message', {
     username,
-    message: `${text} \n⏱(${hours}:${minutes} ${day}/${month})`,
+    message: text,
   });
 
   // Add telegram bot
@@ -301,7 +307,7 @@ app.post('/gemini/:username/:apiKey',validateApiKey, async (req, res) => {
   
   io.emit('new message', {
     username,
-    message: prompt
+    message: getCurrentTimeGTM7() +prompt
   });
  // Check if API key is valid
  if (!acceptedKeys.includes(apiKey)) {
@@ -314,7 +320,7 @@ app.post('/gemini/:username/:apiKey',validateApiKey, async (req, res) => {
     const UserAI = "Gemini.AI";
     io.emit('new message', {
       username: UserAI,
-      message: response
+      message: response 
     });
     return res.status(200).send(response);
 
@@ -372,7 +378,7 @@ app.post('/openai/:username/:apiKey', validateApiKey, async (req, res) => {
   
   io.emit('new message', {
     username,
-    message: prompt
+    message:  getCurrentTimeGTM7() +prompt
   });
  // Check if API key is valid
  if (!acceptedKeys.includes(apiKey)) {
@@ -445,7 +451,7 @@ app.post('/azure/:username/:apiKey', validateApiKey, async (req, res) => {
   
   io.emit('new message', {
     username,
-    message: prompt
+    message:  getCurrentTimeGTM7() +prompt 
   });
  // Check if API key is valid
  if (!acceptedKeys.includes(apiKey)) {
@@ -488,7 +494,7 @@ app.post('/allai/:username/:apiKey', validateApiKey, async (req, res) => {
   
   io.emit('new message', {
     username,
-    message: prompt
+    message: getCurrentTimeGTM7() +prompt
   });
  // Check if API key is valid
  if (!acceptedKeys.includes(apiKey)) {
@@ -532,67 +538,121 @@ let marketData = [];
 
 // Cập nhật dữ liệu từ Myfxbook mỗi 5 phút
 const fetchData = async () => {
-  try {
-    const response = await axios.get('https://api.allorigins.win/get?url=https://www.myfxbook.com/community/outlook');
-    const data = JSON.parse(response.data.contents);
-    const symbols = parseMarketData(data);  // Hàm phân tích dữ liệu lấy từ Myfxbook
-    marketData = symbols;
-    console.log('Market data updated:', marketData);
-  } catch (error) {
-    console.error('Error fetching data from Myfxbook:', error);
-  }
+  return retry(async (bail, attempt) => {
+    try {
+      console.log(`Attempt ${attempt}: Fetching data from Myfxbook...`);
+      const response = await axios.get('https://api.allorigins.win/get?url=https://www.myfxbook.com/community/outlook', { timeout: 300000 }); // Đặt timeout cho axios (ví dụ: 60 giây)
+      //console.log(response.data.contents);
+      const html = response.data.contents; 
+      const symbols = parseMarketData(html);  // Truyền chuỗi HTML vào parseMarketData
+      marketData = symbols;
+      console.log('Market data updated:', marketData);
+      return symbols; // Trả về dữ liệu khi thành công
+    } catch (error) {
+      if (error.response && error.response.status >= 500) {
+        // Chỉ retry nếu lỗi server (5xx)
+        console.error(`Attempt ${attempt}: Error fetching data from Myfxbook:`, error.message);
+        throw error; // Re-throw để async-retry thực hiện retry
+      } else {
+        // Lỗi khác (ví dụ: network error, timeout), không retry
+        console.error('Unrecoverable error fetching data:', error);
+        bail(error);  // Ngăn retry
+      }
+    }
+  }, {
+    retries: 3, // Số lần retry tối đa
+    factor: 2,  // Hệ số nhân thời gian giữa các lần retry
+    minTimeout: 1000, // Thời gian chờ tối thiểu giữa các lần retry (milliseconds)
+    maxTimeout: 60000 // Thời gian chờ tối đa giữa các lần retry (milliseconds)
+  });
 };
 
 // Hàm phân tích dữ liệu lấy từ Myfxbook
-const parseMarketData = (data) => {
-  const symbols = [];
-  // Giả sử dữ liệu Myfxbook có cấu trúc HTML mà bạn cần trích xuất
-  // Cần viết logic phân tích HTML hoặc JSON tùy theo định dạng dữ liệu thực tế
-  // Ví dụ:
-  const regex = /<tr><td>(.*?)<\/td><td>(\d+)%<\/td><td>(\d+)%<\/td><\/tr>/g;
-  let match;
-  while ((match = regex.exec(data)) !== null) {
-    symbols.push({
-      symbol: match[1],
-      long: parseInt(match[2]),
-      short: parseInt(match[3])
-    });
-  }
-  return symbols;
+const parseMarketData = (html) => {
+  const marketData = [];
+  const $ = cheerio.load(html);
+
+  // Lấy tất cả các hàng dữ liệu trong bảng, bỏ qua hàng tiêu đề
+  $('#outlookSymbolsTableContent tr').each((index, element) => {
+    const row = $(element);
+    // Lấy symbol
+    const symbol = row.find('td:nth-child(1) a').text().trim();
+
+    // Lấy % short và % long từ popover
+    const popoverId = row.find('td:last-child div').attr('id');
+    if (popoverId) {
+      const shortPercentage = $(`#${popoverId} table tbody tr:nth-child(1) td:nth-child(3)`).text().replace('%', '').trim();
+      const shortVolume = $(`#${popoverId} table tbody tr:nth-child(1) td:nth-child(4)`).text().replace('%', '').trim();
+      const shortPosition= $(`#${popoverId} table tbody tr:nth-child(1) td:nth-child(5)`).text().replace('%', '').trim(); 
+      const avgShortPrice = parseFloat(row.find(`#shortPriceCell${symbol}`).text().trim());
+      const shortDistance = row.find(`#shortDisCell${symbol} span`).text().trim();
+      const longPercentage = $(`#${popoverId} table tbody tr:nth-child(2) td:nth-child(2)`).text().replace('%', '').trim();
+      const longVolume = $(`#${popoverId} table tbody tr:nth-child(2) td:nth-child(3)`).text().replace('%', '').trim();
+      const longPositions = $(`#${popoverId} table tbody tr:nth-child(2) td:nth-child(4)`).text().replace('%', '').trim();
+      const avgLongPrice = parseFloat(row.find(`#longPriceCell${symbol}`).text().trim());
+      const longDistance = row.find(`#longDisCell${symbol} span`).text().trim();
+      const totalPositions = parseInt(longPositions) + parseInt(shortPosition);
+      marketData.push({
+        symbol,
+        shortPercentage: shortPercentage,
+        longPercentage: longPercentage,
+        shortVolume: shortVolume,
+        longVolume: longVolume,
+        longPositions: longPositions,
+        shortPosition: shortPosition,
+        totalPositions: totalPositions,
+        avgShortPrice: avgShortPrice,
+        avgLongPrice: avgLongPrice,
+        shortDistance: shortDistance,
+        longDistance: longDistance
+      });
+    }
+  });
+
+  return marketData;
 };
 
+
 // Gọi fetchData mỗi 5 phút
-setInterval(fetchData, 5 * 60 * 1000);
+setInterval(async () => {
+  await fetchData();
+}, 5 * 60 * 1000);
 
 // Endpoint lấy dữ liệu symbol theo API key
 
-app.post('/ms/:symbol/:apikey', async (req, res) => {
-  const { symbol, apikey } = req.params;
-  
+app.get('/ms/:symbol?', async (req, res) => { // Thêm dấu ? để symbol là optional
+  const { symbol } = req.params;
+
   console.log('Received symbol:', symbol);
-  console.log('Received API key:', apikey);
-  console.log('Accepted keys:', acceptedKeys);
 
-  if (!acceptedKeys.includes(apikey)) {
-    console.error('Invalid API key');
-    return res.status(401).send('Invalid API key');
+  if (!symbol) {
+    // Không có symbol, trả về toàn bộ marketData
+    return res.json(marketData);
+  } else if (symbol.toLowerCase() === 'all') {
+    // symbol là 'all', trả về symbol, long, short
+    const allSymbolsData = marketData.map(item => ({
+      symbol: item.symbol,
+      longPercentage: item.longPercentage,
+      shortPercentage: item.shortPercentage
+    }));
+    return res.json(allSymbolsData);
+  
+  } else {
+    // Tìm kiếm dữ liệu cho symbol cụ thể
+    const data = marketData.find(item => item.symbol.toLowerCase() === symbol.toLowerCase());
+    console.log('Search result:', data);
+
+    if (!data) {
+      console.error('Symbol not found');
+      return res.status(404).send('Symbol not found in data');
+    }
+
+    return res.json({
+      symbol: data.symbol,
+      longPercentage: data.longPercentage,
+      shortPercentage: data.shortPercentage
+    });
   }
-
-  console.log('Market data:', marketData);
-
-  const data = marketData.find(item => item.symbol.toLowerCase() === symbol.toLowerCase());
-  console.log('Search result:', data);
-
-  if (!data) {
-    console.error('Symbol not found');
-    return res.status(404).send('Symbol not found in data');
-  }
-
-  return res.json({
-    symbol: data.symbol,
-    long: data.long,
-    short: data.short
-  });
 });
 
 // Handle invalid endpoint
