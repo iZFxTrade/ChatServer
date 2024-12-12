@@ -41,10 +41,17 @@ const genAI = new GoogleGenerativeAI(process.env.Gemini_API);
     // Prompt
     const prompt = "Hello Gemini?";
     const result = await model.generateContent([prompt]);
-
+    
     // Kiểm tra phản hồi
     if (result.response) {
-      console.log("Gemini.AI: "+result.response.text());
+      console.log(getCurrentTimeGTM7() +"Gemini.AI: "+result.response.text());
+      const telegramSuccess = await sendTelegramMessage("iZFx.Trade", "Gemini.AI: " + result.response.text()); // Gui thong bao vao Telegram
+      if (telegramSuccess) {
+        console.log("Telegram System was successful: ", getCurrentTimeGTM7());
+      }
+      else {
+        console.log("Failed to send Telegram message:", getCurrentTimeGTM7() + result.response.text());
+      }
     } else {
       console.log("No response or invalid response format");
     }
@@ -169,6 +176,47 @@ function getCurrentTimeGTM7() {
   return `(⏱ ${hours}:${minutes} ${day}/${month}): `;
 }
 
+// Add Telegram Bot
+const TelegramBot = require('node-telegram-bot-api');
+// Hàm gửi tin nhắn Telegram
+const sendTelegramMessage = async (apiKey, message) => {
+  const telegramInfo = {
+    [process.env.API_KEY_1]: {
+      token: process.env.TELEGRAM_TOKEN_1,
+      chatId: process.env.TELEGRAM_CHAT_ID_1
+    },
+    [process.env.API_KEY_2]: {
+      token: process.env.TELEGRAM_TOKEN_2,
+      chatId: process.env.TELEGRAM_CHAT_ID_2
+    },
+    [process.env.API_KEY_3]: {
+      token: process.env.TELEGRAM_TOKEN_3,
+      chatId: process.env.TELEGRAM_CHAT_ID_3
+    },
+    // ... (Các API key và thông tin Telegram khác)
+  };
+
+  const info = telegramInfo[apiKey];
+  if (!info) {
+    console.error('Invalid API key for Telegram:', apiKey);
+    return false; // Hoặc throw error nếu bạn muốn dừng thực thi
+  }
+
+  const { token, chatId } = info;
+
+  try {
+    const bot = new TelegramBot(token);
+    await bot.sendMessage(chatId, message); // Dùng await để đợi kết quả
+    //console.log('Telegram message sent successfully:', message);
+    return true;
+  } catch (error) {
+    console.error('Telegram error:', error.response?.body || error); // Xử lý lỗi tốt hơn
+    return false;
+  }
+};
+
+
+
 // Add webhook endpoint
 app.post('/webhook/:username/:apiKey', (req, res) => {
   const { username, apiKey } = req.params;
@@ -260,7 +308,13 @@ async function callGeminiAPI(prompt, moden= "gemini-1.5-pro") {
   const cacheKey = `gemini_${prompt+moden}`;
   const cachedResponse = responseCache.get(cacheKey);
   if (cachedResponse) {
-    console.log("Gemini: Returning cached response");
+    console.log(getCurrentTimeGTM7()+"Gemini.Ai (Cache): " + cachedResponse);
+    const UserAI = "Gemini.AI ("+moden+"): ";
+    io.emit('new message', {
+      username: UserAI,
+      message: cachedResponse 
+    });
+    const telegramSuccess = await sendTelegramMessage("KDFund", UserAI + cachedResponse); 
     return cachedResponse;
   }
   try {
@@ -272,12 +326,13 @@ async function callGeminiAPI(prompt, moden= "gemini-1.5-pro") {
     if (result.response) {
       const response = result.response.text();
       responseCache.set(cacheKey, response); // Lưu vào cache
-      console.log("Gemini.AI: " + response);
+      console.log(getCurrentTimeGTM7()+"Gemini.AI: " + response);
       const UserAI = "Gemini.AI ("+moden+"): ";
       io.emit('new message', {
         username: UserAI,
         message: response 
       });
+      const telegramSuccess = await sendTelegramMessage("KDFund", UserAI + result.response.text()); 
       return response;
     } else {
       console.log("No response or invalid response format");
@@ -333,7 +388,13 @@ async function callOpenAI(prompt, model = "gpt-3.5-turbo") {
   const cacheKey = `openai_${prompt+model}`;
   const cachedResponse = responseCache.get(cacheKey);
   if (cachedResponse) {
-    console.log("OpenAI: Returning cached response");
+    console.log(getCurrentTimeGTM7()+"Open.AI (Cache): " + cachedResponse);
+    const UserAI = "Open.AI ("+model+"): ";
+    io.emit('new message', {
+      username: UserAI,
+      message: cachedResponse
+    });
+    const telegramSuccess = await sendTelegramMessage("KDFund", UserAI + cachedResponse); 
     return cachedResponse;
   }
   try {
@@ -347,12 +408,13 @@ async function callOpenAI(prompt, model = "gpt-3.5-turbo") {
   });
     const response = completion.choices[0].message.content;
     responseCache.set(cacheKey, response); // Lưu vào cache
-    console.log("Open.AI: " + response);
+    console.log(getCurrentTimeGTM7()+"Open.AI: " + response);
     const UserAI = "Open.AI ("+model+"): ";
     io.emit('new message', {
       username: UserAI,
       message: response
     });
+    const telegramSuccess = await sendTelegramMessage("KDFund", UserAI + response); 
     return response;
   } catch (error) {
     console.log(error);
@@ -406,7 +468,13 @@ async function callAzureOpenAI(prompt, model = 'gpt-4o-mini') {
   const cacheKey = `azure_openai_${prompt+model}`;
   const cachedResponse = responseCache.get(cacheKey);
   if (cachedResponse) {
-    console.log("Azure OpenAI: Returning cached response");
+    console.log(getCurrentTimeGTM7()+"AzureOpen.AI (Cache): " + cachedResponse);
+    const UserAI = "Azure.AI ("+model+"): ";
+    io.emit('new message', {
+      username: UserAI,
+      message: cachedResponse
+    });
+    const telegramSuccess = await sendTelegramMessage("KDFund", UserAI + cachedResponse); 
     return cachedResponse;
   }
   const azure = new OpenAI({ baseURL: "https://models.inference.ai.azure.com", apiKey: process.env.GitHub_API });
@@ -423,12 +491,13 @@ async function callAzureOpenAI(prompt, model = 'gpt-4o-mini') {
   });
     const response = kq.choices[0].message.content;
     responseCache.set(cacheKey, response); // Lưu vào cache
-    console.log("AzureOpen.AI: " + response);
+    console.log(getCurrentTimeGTM7()+"AzureOpen.AI: " + response);
     const UserAI = "Azure.AI ("+model+"): ";
     io.emit('new message', {
       username: UserAI,
       message: response
     });
+    const telegramSuccess = await sendTelegramMessage("KDFund", UserAI + response); 
     return response;
   } catch (error) {
     console.log(error);
@@ -513,7 +582,7 @@ async function callAllAI(prompt) {
   const cacheKey = `allai_${prompt}`;
   const cachedResponse = responseCache.get(cacheKey);
   if (cachedResponse) {
-    console.log("All AI: Returning cached response");
+    console.log(getCurrentTimeGTM7()+"All AI: Returning cached response");
     return cachedResponse;
   }
   const azure = await callAzureOpenAI(prompt);
@@ -526,7 +595,6 @@ async function callAllAI(prompt) {
 }
 
 
-
 // Encode URL https://www.myfxbook.com/community/outlook
 // Mảng lưu trữ dữ liệu symbol và long/short % (sẽ được cập nhật định kỳ)
 let marketData = [];
@@ -535,13 +603,13 @@ let marketData = [];
 const fetchData = async () => {
   return retry(async (bail, attempt) => {
     try {
-      console.log(`Attempt ${attempt}: Fetching data from Myfxbook...`);
+      //console.log(`Attempt ${attempt}: Fetching data from Myfxbook...`);
       const response = await axios.get('https://api.allorigins.win/get?url=https://www.myfxbook.com/community/outlook', { timeout: 300000 }); // Đặt timeout cho axios (ví dụ: 60 giây)
       //console.log(response.data.contents);
       const html = response.data.contents; 
       const symbols = parseMarketData(html);  // Truyền chuỗi HTML vào parseMarketData
       marketData = symbols;
-      console.log(marketData.length + ' Symbol in marketData updated');
+      //console.log(marketData.length + ' Symbol in marketData updated');
       //in danh sach marketData
       //console.log('Market data updated:', marketData);
       return symbols; // Trả về dữ liệu khi thành công
@@ -596,7 +664,7 @@ const parseMarketData = (html) => {
         shortVolume: shortVolume,
         longVolume: longVolume,
         longPositions: longPositions,
-        shortPosition: shortPosition,
+        shortPositions: shortPosition,
         totalPositions: totalPositions,
         avgShortPrice: avgShortPrice,
         avgLongPrice: avgLongPrice,
@@ -620,7 +688,7 @@ setInterval(async () => {
 app.get('/ms/:symbol?', async (req, res) => { // Thêm dấu ? để symbol là optional
   const { symbol } = req.params;
 
-  console.log('Received symbol:', symbol);
+  console.log(getCurrentTimeGTM7() +'Client Request Market Data for symbol:', symbol);
 
   if (!symbol) {
     // Không có symbol, trả về toàn bộ marketData
@@ -647,7 +715,16 @@ app.get('/ms/:symbol?', async (req, res) => { // Thêm dấu ? để symbol là 
     return res.json({
       symbol: data.symbol,
       longPercentage: data.longPercentage,
-      shortPercentage: data.shortPercentage
+      shortPercentage: data.shortPercentage,
+      shortVolume: data.shortVolume,
+      longVolume: data.longVolume,
+      longPositions: data.longPositions,
+      shortPositions: data.shortPosition,
+      totalPositions: data.totalPositions,
+      avgShortPrice: data.avgShortPrice,
+      avgLongPrice: data.avgLongPrice,
+      shortDistance: data.shortDistance,
+      longDistance: data.longDistance
     });
   }
 });
