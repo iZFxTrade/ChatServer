@@ -20,53 +20,30 @@ on website load.
 - Users can type chat messages to the chat room.
 - A notification is sent to all users when a user joins or leaves
 the chatroom.
+- Send responsive to Telegram Chanel/Group 
 
-# Login heroku
-tai heroku CLI 
-https://devcenter.heroku.com/articles/heroku-command-line
+# Webhook for Tradingview Notication:
 
-# Login Heroku
-```
-heroku login
-```
-# Tao App tren Heroku
-```
-heroku create yourapp
-```
-## nen login dashboard tao cho le
+- domain/webhook/:username/:apiKey
+data input is json
 
-# tao git tren local
-di chuyen toi thu muc chua file server can deploy len heroku
-```
-git init
-```
-# kiem tra trang thai git
-```
-git status
-```
-# them thu muc hien tai vao git
-```
-git add .
-```
-# tao commit 
-```
-git commit -m 'First commit'
-```
+# Webhook for Market Sements
+- domain/ms/ return All Marketdata json
+- domain/ms/all return all symbol with BUY/SELL %
+- domain/ms/[symbol] return data of symbol
 
-# them url remote git
-```
-git remote add heroku https://izlife.herokuapp.com
-```
+# Webhook for Google Gemini
+model is option, defaul is gemini-1.5-pro 
+- domain/gemini/:username/:apiKey/:model?
 
-# kiem tra cac sv git remote
-```
-git remote -v
-```
-# Deploy App lan dau
-```
-git push -u heroku master
-```
-# Update Git
-```
-git push heroku
-```
+# Webhook for OpenAI
+model is option, defaul is gpt-3.5-turbo 
+- domain/openai/:username/:apiKey/:model?
+
+# Webhook for Azure
+model is option, defaul is gpt-4o-mini 
+- domain/azure/:username/:apiKey/:model?
+
+# Webhook for All A.I
+run 3 A.I with defaul model
+- domain/allai/:username/:apiKey/:model?
