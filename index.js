@@ -604,7 +604,7 @@ const fetchData = async () => {
   return retry(async (bail, attempt) => {
     try {
       //console.log(`Attempt ${attempt}: Fetching data from Myfxbook...`);
-      const response = await axios.get('https://api.allorigins.win/get?url=https://www.myfxbook.com/community/outlook', { timeout: 300000 }); // Đặt timeout cho axios (ví dụ: 60 giây)
+      const response = await axios.get('https://api.allorigins.win/get?url=https://www.myfxbook.com/community/outlook', { timeout: 360000 }); // Đặt timeout cho axios (ví dụ: 60 giây)
       //console.log(response.data.contents);
       const html = response.data.contents; 
       const symbols = parseMarketData(html);  // Truyền chuỗi HTML vào parseMarketData
@@ -625,10 +625,10 @@ const fetchData = async () => {
       }
     }
   }, {
-    retries: 3, // Số lần retry tối đa
+    retries: 10, // Số lần retry tối đa
     factor: 2,  // Hệ số nhân thời gian giữa các lần retry
     minTimeout: 1000, // Thời gian chờ tối thiểu giữa các lần retry (milliseconds)
-    maxTimeout: 60000 // Thời gian chờ tối đa giữa các lần retry (milliseconds)
+    maxTimeout: 120000 // Thời gian chờ tối đa giữa các lần retry (milliseconds)
   });
 };
 
